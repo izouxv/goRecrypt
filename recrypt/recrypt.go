@@ -7,10 +7,11 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
-	"goRecrypt/curve"
-	"goRecrypt/math"
-	"goRecrypt/utils"
 	"math/big"
+
+	"github.com/izouxv/goRecrypt/curve"
+	"github.com/izouxv/goRecrypt/math"
+	"github.com/izouxv/goRecrypt/utils"
 )
 
 type Capsule struct {

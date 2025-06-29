@@ -46,8 +46,8 @@ package main
 
 import (
 	"fmt"
-	"goRecrypt/curve"
-	"goRecrypt/recrypt"
+	"github.com/izouxv/goRecryptcurve"
+	"github.com/izouxv/goRecryptrecrypt"
 )
 
 func main() {

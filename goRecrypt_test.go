@@ -1,13 +1,15 @@
-package main
+package goRecrypt
 
 import (
 	"encoding/hex"
 	"fmt"
-	"goRecrypt/curve"
-	"goRecrypt/recrypt"
+	"testing"
+
+	"github.com/izouxv/goRecrypt/curve"
+	"github.com/izouxv/goRecrypt/recrypt"
 )
 
-func main() {
+func TestPre(t *testing.T) {
 	// Alice Generate Alice key-pair
 	aPriKey, aPubKey, _ := curve.GenerateKeys()
 	// Bob Generate Bob key-pair
