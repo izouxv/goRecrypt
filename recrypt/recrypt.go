@@ -19,7 +19,7 @@ type Capsule struct {
 	S *big.Int
 }
 
-func encryptKeyGen(pubKey *ecdsa.PublicKey) (capsule *Capsule, keyBytes []byte, err error) {
+func EncryptKeyGen(pubKey *ecdsa.PublicKey) (capsule *Capsule, keyBytes []byte, err error) {
 	s := new(big.Int)
 	// generate E,V key-pairs
 	priE, pubE, err := curve.GenerateKeys()
@@ -84,7 +84,7 @@ func EncryptMessageByAESKey(message []byte, keyBytes []byte) (cipherText []byte,
 // Encrypt the message
 // AES GCM + Proxy Re-Encryption
 func Encrypt(message string, pubKey *ecdsa.PublicKey) (cipherText []byte, capsule *Capsule, err error) {
-	capsule, keyBytes, err := encryptKeyGen(pubKey)
+	capsule, keyBytes, err := EncryptKeyGen(pubKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -108,7 +108,7 @@ func EncryptByStr(message, pubKeyStr string) (cipherText []byte, capsule *Capsul
 
 // encrypt file
 func EncryptFile(inputFile, outPutFile string, pubKey *ecdsa.PublicKey) (capsule *Capsule, err error) {
-	capsule, keyBytes, err := encryptKeyGen(pubKey)
+	capsule, keyBytes, err := EncryptKeyGen(pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func ReEncryption(rk *big.Int, capsule *Capsule) (*Capsule, error) {
 	return newCapsule, nil
 }
 
-func decryptKeyGen(bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.PublicKey) (keyBytes []byte, err error) {
+func DecryptKeyGen(bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.PublicKey) (keyBytes []byte, err error) {
 	// S = X_A^{sk_B}
 	S := curve.PointScalarMul(pubX, bPriKey.D)
 	// recreate d = H3(X_A || pk_B || S)
@@ -209,7 +209,7 @@ func decryptKeyGen(bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.Publ
 
 // Recreate the aes key then decrypt the cipherText
 func Decrypt(bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.PublicKey, cipherText []byte) (plainText []byte, err error) {
-	keyBytes, err := decryptKeyGen(bPriKey, capsule, pubX)
+	keyBytes, err := DecryptKeyGen(bPriKey, capsule, pubX)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func DecryptByStr(bPriKeyStr string, capsule *Capsule, pubXStr string, cipherTex
 
 // decrypt file
 func DecryptFile(inputFile, outPutFile string, bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.PublicKey) (err error) {
-	keyBytes, err := decryptKeyGen(bPriKey, capsule, pubX)
+	keyBytes, err := DecryptKeyGen(bPriKey, capsule, pubX)
 	if err != nil {
 		return err
 	}
