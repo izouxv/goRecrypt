@@ -48,9 +48,9 @@ func PrivateKeyStrToKey(privateKeyStr string) (*ecdsa.PrivateKey, error) {
 	}
 	d := new(big.Int).SetBytes(priKeyAsBytes)
 	// compute public key
-	x, y := elliptic.P256().ScalarBaseMult(priKeyAsBytes)
+	x, y := curve.CURVE().ScalarBaseMult(priKeyAsBytes)
 	pubKey := ecdsa.PublicKey{
-		curve.CURVE, x, y,
+		curve.CURVE(), x, y,
 	}
 	key := &ecdsa.PrivateKey{
 		D:         d,
@@ -71,9 +71,9 @@ func PublicKeyStrToKey(pubKey string) (*ecdsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	x, y := elliptic.Unmarshal(curve.CURVE, pubKeyAsBytes)
+	x, y := elliptic.Unmarshal(curve.CURVE(), pubKeyAsBytes)
 	key := &ecdsa.PublicKey{
-		Curve: curve.CURVE,
+		Curve: curve.CURVE(),
 		X:     x,
 		Y:     y,
 	}

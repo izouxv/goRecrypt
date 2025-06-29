@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
@@ -14,7 +13,7 @@ import (
 
 // Generate Private and Public key-pair
 func GenerateKeys() (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privateKey, err := ecdsa.GenerateKey(CURVE(), rand.Reader)
 	if err != nil {
 		return nil, nil, err
 	}

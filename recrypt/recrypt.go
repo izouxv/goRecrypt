@@ -3,7 +3,6 @@ package recrypt
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
@@ -169,13 +168,13 @@ func ReKeyGenByStr(aPriKeyStr, bPubKeyStr string) (*big.Int, *ecdsa.PublicKey, e
 // Server executes Re-Encryption method
 func ReEncryption(rk *big.Int, capsule *Capsule) (*Capsule, error) {
 	// check g^s == V * E^{H2(E || V)}
-	x1, y1 := curve.CURVE.ScalarBaseMult(capsule.S.Bytes())
-	tempX, tempY := curve.CURVE.ScalarMult(capsule.E.X, capsule.E.Y,
+	x1, y1 := curve.CURVE().ScalarBaseMult(capsule.S.Bytes())
+	tempX, tempY := curve.CURVE().ScalarMult(capsule.E.X, capsule.E.Y,
 		utils.HashToCurve(
 			utils.ConcatBytes(
 				curve.PointToBytes(capsule.E),
 				curve.PointToBytes(capsule.V))).Bytes())
-	x2, y2 := curve.CURVE.Add(capsule.V.X, capsule.V.Y, tempX, tempY)
+	x2, y2 := curve.CURVE().Add(capsule.V.X, capsule.V.Y, tempX, tempY)
 	// if check failed return error
 	if x1.Cmp(x2) != 0 || y1.Cmp(y2) != 0 {
 		return nil, fmt.Errorf("%s", "Capsule not match")
@@ -288,7 +287,7 @@ func DecryptOnMyOwnStrKey(aPriKeyStr string, capsule *Capsule, cipherText []byte
 }
 
 func EncodeCapsule(capsule Capsule) (capsuleAsBytes []byte, err error) {
-	gob.Register(elliptic.P256())
+	gob.Register(curve.CURVE())
 	buf := new(bytes.Buffer)
 	enc := gob.NewEncoder(buf)
 	if err = enc.Encode(capsule); err != nil {
@@ -299,7 +298,7 @@ func EncodeCapsule(capsule Capsule) (capsuleAsBytes []byte, err error) {
 
 func DecodeCapsule(capsuleAsBytes []byte) (capsule Capsule, err error) {
 	capsule = Capsule{}
-	gob.Register(elliptic.P256())
+	gob.Register(curve.CURVE())
 	dec := gob.NewDecoder(bytes.NewBuffer(capsuleAsBytes))
 	if err = dec.Decode(&capsule); err != nil {
 		return capsule, err
