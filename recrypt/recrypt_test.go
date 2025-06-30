@@ -30,7 +30,6 @@ func Test_Recrypt(t *testing.T) {
 	//bob receive pubX and newCapsule
 	keyBytesDecrypt, err := DecryptKeyGen(bPriKey, newCapsule, pubX)
 	assert.Nil(t, err)
-
 	assert.Equal(t, keyBytes, keyBytesDecrypt)
 
 	capsuleAsBytes, err := EncodeCapsule(*capsule)

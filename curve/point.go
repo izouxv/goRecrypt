@@ -9,7 +9,7 @@ import (
 
 var CURVE = func() elliptic.Curve {
 	// return secp256k1.S256()
-	// return elliptic.P521()
+	return elliptic.P521()
 	return elliptic.P256()
 }
 var P = CURVE().Params().P

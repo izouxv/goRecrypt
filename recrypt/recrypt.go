@@ -3,7 +3,7 @@ package recrypt
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"encoding/gob"
+	"crypto/elliptic"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -19,10 +19,58 @@ type Capsule struct {
 	S *big.Int
 }
 
+func (c *Capsule) Encode() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	utils.WriteVarBytes(buf, curve.PointToBytes(c.E))
+	utils.WriteVarBytes(buf, curve.PointToBytes(c.V))
+	utils.WriteVarBytes(buf, c.S.Bytes())
+	return buf.Bytes(), nil
+}
+
+func (c *Capsule) Decode(data []byte) error {
+	buf := bytes.NewBuffer(data)
+
+	decode := func() (*ecdsa.PublicKey, error) {
+		kStr, _, err := utils.ReadVarBytes(buf)
+		if err != nil {
+			return nil, err
+		}
+		k := new(ecdsa.PublicKey)
+		k.Curve = curve.CURVE()
+		k.X, k.Y = elliptic.Unmarshal(curve.CURVE(), kStr)
+		return k, nil
+	}
+
+	k, err := decode()
+	if err != nil {
+		return err
+	}
+	c.E = k
+
+	k, err = decode()
+	if err != nil {
+		return err
+	}
+	c.V = k
+
+	sStr, _, err := utils.ReadVarBytes(buf)
+	if err != nil {
+		return err
+	}
+
+	y := new(big.Int).SetBytes(sStr)
+	c.S = y
+	return nil
+
+}
+
 func EncryptKeyGen(pubKey *ecdsa.PublicKey) (capsule *Capsule, keyBytes []byte, err error) {
 	s := new(big.Int)
 	// generate E,V key-pairs
 	priE, pubE, err := curve.GenerateKeys()
+	if err != nil {
+		return nil, nil, err
+	}
 	priV, pubV, err := curve.GenerateKeys()
 	if err != nil {
 		return nil, nil, err
@@ -287,21 +335,9 @@ func DecryptOnMyOwnStrKey(aPriKeyStr string, capsule *Capsule, cipherText []byte
 }
 
 func EncodeCapsule(capsule Capsule) (capsuleAsBytes []byte, err error) {
-	gob.Register(curve.CURVE())
-	buf := new(bytes.Buffer)
-	enc := gob.NewEncoder(buf)
-	if err = enc.Encode(capsule); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return capsule.Encode()
 }
 
 func DecodeCapsule(capsuleAsBytes []byte) (capsule Capsule, err error) {
-	capsule = Capsule{}
-	gob.Register(curve.CURVE())
-	dec := gob.NewDecoder(bytes.NewBuffer(capsuleAsBytes))
-	if err = dec.Decode(&capsule); err != nil {
-		return capsule, err
-	}
-	return capsule, nil
+	return capsule, capsule.Decode(capsuleAsBytes)
 }
