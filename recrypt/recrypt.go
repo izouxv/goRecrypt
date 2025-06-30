@@ -94,7 +94,7 @@ func EncryptKeyGen(pubKey *ecdsa.PublicKey) (capsule *Capsule, keyBytes []byte, 
 		V: pubV,
 		S: s,
 	}
-	fmt.Println("old key:", hex.EncodeToString(keyBytes))
+	// fmt.Println("old key:", hex.EncodeToString(keyBytes))
 	return capsule, keyBytes, nil
 }
 
@@ -187,6 +187,7 @@ func ReKeyGen(aPriKey *ecdsa.PrivateKey, bPubKey *ecdsa.PublicKey) (*big.Int, *e
 	if err != nil {
 		return nil, nil, err
 	}
+
 	// get d = H3(X_A || pk_B || pk_B^{x_A})
 	point := curve.PointScalarMul(bPubKey, priX.D)
 	d := utils.HashToCurve(

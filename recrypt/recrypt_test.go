@@ -1,7 +1,6 @@
 package recrypt
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/izouxv/goRecrypt/curve"
@@ -21,7 +20,7 @@ func Test_Recrypt(t *testing.T) {
 	//alice gen pubX to bob
 	rk, pubX, err := ReKeyGen(aPriKey, bPubKey)
 	assert.Nil(t, err)
-	fmt.Println("rk:", rk)
+	// fmt.Println("rk:", rk)
 
 	// Server executes re-encrypt
 	newCapsule, err := ReEncryption(rk, capsule)
