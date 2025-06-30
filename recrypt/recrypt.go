@@ -21,9 +21,15 @@ type Capsule struct {
 
 func (c *Capsule) Encode() ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
-	utils.WriteVarBytes(buf, curve.PointToBytes(c.E))
-	utils.WriteVarBytes(buf, curve.PointToBytes(c.V))
-	utils.WriteVarBytes(buf, c.S.Bytes())
+	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.E)); err != nil {
+		return nil, err
+	}
+	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.V)); err != nil {
+		return nil, err
+	}
+	if err := utils.WriteVarBytes(buf, c.S.Bytes()); err != nil {
+		return nil, err
+	}
 	return buf.Bytes(), nil
 }
 
@@ -57,7 +63,6 @@ func (c *Capsule) Decode(data []byte) error {
 	if err != nil {
 		return err
 	}
-
 	y := new(big.Int).SetBytes(sStr)
 	c.S = y
 	return nil
