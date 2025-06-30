@@ -30,9 +30,9 @@ func Sha3Hash(message []byte) ([]byte, error) {
 }
 
 // map hash value to curve
-func HashToCurve(hash []byte) *big.Int {
+func HashToCurve(CURVE elliptic.Curve, hash []byte) *big.Int {
 	hashInt := new(big.Int).SetBytes(hash)
-	return hashInt.Mod(hashInt, curve.N)
+	return hashInt.Mod(hashInt, CURVE.Params().N)
 }
 
 // convert private key to string
@@ -41,16 +41,16 @@ func PrivateKeyToString(privateKey *ecdsa.PrivateKey) string {
 }
 
 // convert string to private key
-func PrivateKeyStrToKey(privateKeyStr string) (*ecdsa.PrivateKey, error) {
+func PrivateKeyStrToKey(CURVE elliptic.Curve, privateKeyStr string) (*ecdsa.PrivateKey, error) {
 	priKeyAsBytes, err := hex.DecodeString(privateKeyStr)
 	if err != nil {
 		return nil, err
 	}
 	d := new(big.Int).SetBytes(priKeyAsBytes)
 	// compute public key
-	x, y := curve.CURVE().ScalarBaseMult(priKeyAsBytes)
+	x, y := CURVE.ScalarBaseMult(priKeyAsBytes)
 	pubKey := ecdsa.PublicKey{
-		curve.CURVE(), x, y,
+		CURVE, x, y,
 	}
 	key := &ecdsa.PrivateKey{
 		D:         d,
@@ -61,19 +61,19 @@ func PrivateKeyStrToKey(privateKeyStr string) (*ecdsa.PrivateKey, error) {
 
 // convert public key to string
 func PublicKeyToString(publicKey *ecdsa.PublicKey) string {
-	pubKeyBytes := curve.PointToBytes(publicKey)
+	pubKeyBytes := curve.PointToBytes(publicKey.Curve, publicKey)
 	return hex.EncodeToString(pubKeyBytes)
 }
 
 // convert public key string to key
-func PublicKeyStrToKey(pubKey string) (*ecdsa.PublicKey, error) {
+func PublicKeyStrToKey(CURVE elliptic.Curve, pubKey string) (*ecdsa.PublicKey, error) {
 	pubKeyAsBytes, err := hex.DecodeString(pubKey)
 	if err != nil {
 		return nil, err
 	}
-	x, y := elliptic.Unmarshal(curve.CURVE(), pubKeyAsBytes)
+	x, y := elliptic.Unmarshal(CURVE, pubKeyAsBytes)
 	key := &ecdsa.PublicKey{
-		Curve: curve.CURVE(),
+		Curve: CURVE,
 		X:     x,
 		Y:     y,
 	}

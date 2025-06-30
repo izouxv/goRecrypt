@@ -1,17 +1,20 @@
 package recrypt
 
 import (
+	"crypto/elliptic"
 	"testing"
 
 	"github.com/izouxv/goRecrypt/curve"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_Recrypt(t *testing.T) {
+func Test_ProxyReEncryption(t *testing.T) {
+	CURVE := elliptic.P256()
+
 	// Alice Generate Alice key-pair
-	aPriKey, aPubKey, _ := curve.GenerateKeys()
+	aPriKey, aPubKey, _ := curve.GenerateKeys(CURVE)
 	// Bob Generate Bob key-pair
-	bPriKey, bPubKey, _ := curve.GenerateKeys()
+	bPriKey, bPubKey, _ := curve.GenerateKeys(CURVE)
 
 	//alice gen key
 	capsule, keyBytes, err := EncryptKeyGen(aPubKey)
@@ -35,6 +38,7 @@ func Test_Recrypt(t *testing.T) {
 	assert.Nil(t, err)
 	capsuleTest, err := DecodeCapsule(capsuleAsBytes)
 	assert.Nil(t, err)
+	assert.True(t, capsule.Equal(&capsuleTest))
 	capsuleAsBytes2, err := EncodeCapsule(capsuleTest)
 	assert.Nil(t, err)
 	assert.Equal(t, capsuleAsBytes, capsuleAsBytes2)

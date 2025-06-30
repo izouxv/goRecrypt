@@ -1,6 +1,7 @@
 package goRecrypt
 
 import (
+	"crypto/elliptic"
 	"encoding/hex"
 	"fmt"
 	"testing"
@@ -10,10 +11,12 @@ import (
 )
 
 func TestPre(t *testing.T) {
+	CURVE := elliptic.P256()
+	CURVE = elliptic.P521()
 	// Alice Generate Alice key-pair
-	aPriKey, aPubKey, _ := curve.GenerateKeys()
+	aPriKey, aPubKey, _ := curve.GenerateKeys(CURVE)
 	// Bob Generate Bob key-pair
-	bPriKey, bPubKey, _ := curve.GenerateKeys()
+	bPriKey, bPubKey, _ := curve.GenerateKeys(CURVE)
 	// plain text
 	m := "Hello, Proxy Re-Encryption"
 	fmt.Println("origin message:", m)

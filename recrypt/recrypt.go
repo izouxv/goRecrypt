@@ -19,12 +19,24 @@ type Capsule struct {
 	S *big.Int
 }
 
+func (c *Capsule) Equal(cc *Capsule) bool {
+	return c.S.Cmp(cc.S) == 0 && c.E.Equal(cc.E) && c.V.Equal(cc.V)
+}
+
+func (c *Capsule) Curve() elliptic.Curve {
+	return c.E.Curve
+}
+
 func (c *Capsule) Encode() ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
-	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.E)); err != nil {
+
+	if err := utils.WriteVarBytes(buf, []byte(c.Curve().Params().Name)); err != nil {
 		return nil, err
 	}
-	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.V)); err != nil {
+	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.E.Curve, c.E)); err != nil {
+		return nil, err
+	}
+	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.V.Curve, c.V)); err != nil {
 		return nil, err
 	}
 	if err := utils.WriteVarBytes(buf, c.S.Bytes()); err != nil {
@@ -36,14 +48,23 @@ func (c *Capsule) Encode() ([]byte, error) {
 func (c *Capsule) Decode(data []byte) error {
 	buf := bytes.NewBuffer(data)
 
+	name, _, err := utils.ReadVarBytes(buf)
+	if err != nil {
+		return err
+	}
+	CURVE := curve.CurveGet(string(name))
+
 	decode := func() (*ecdsa.PublicKey, error) {
-		kStr, _, err := utils.ReadVarBytes(buf)
+		pubKeyAsBytes, _, err := utils.ReadVarBytes(buf)
 		if err != nil {
 			return nil, err
 		}
-		k := new(ecdsa.PublicKey)
-		k.Curve = curve.CURVE()
-		k.X, k.Y = elliptic.Unmarshal(curve.CURVE(), kStr)
+		x, y := elliptic.Unmarshal(CURVE, pubKeyAsBytes)
+		k := &ecdsa.PublicKey{
+			Curve: CURVE,
+			X:     x,
+			Y:     y,
+		}
 		return k, nil
 	}
 
@@ -70,27 +91,30 @@ func (c *Capsule) Decode(data []byte) error {
 }
 
 func EncryptKeyGen(pubKey *ecdsa.PublicKey) (capsule *Capsule, keyBytes []byte, err error) {
+	CURVE := pubKey.Curve
+
 	s := new(big.Int)
 	// generate E,V key-pairs
-	priE, pubE, err := curve.GenerateKeys()
+	priE, pubE, err := curve.GenerateKeys(CURVE)
 	if err != nil {
 		return nil, nil, err
 	}
-	priV, pubV, err := curve.GenerateKeys()
+	priV, pubV, err := curve.GenerateKeys(CURVE)
 	if err != nil {
 		return nil, nil, err
 	}
 	// get H2(E || V)
 	h := utils.HashToCurve(
+		CURVE,
 		utils.ConcatBytes(
-			curve.PointToBytes(pubE),
-			curve.PointToBytes(pubV)))
+			curve.PointToBytes(CURVE, pubE),
+			curve.PointToBytes(CURVE, pubV)))
 	// get s = v + e * H2(E || V)
-	s = math.BigIntAdd(priV.D, math.BigIntMul(priE.D, h))
+	s = math.BigIntAdd(CURVE, priV.D, math.BigIntMul(CURVE, priE.D, h))
 	// get (pk_A)^{e+v}
-	point := curve.PointScalarMul(pubKey, math.BigIntAdd(priE.D, priV.D))
+	point := curve.PointScalarMul(CURVE, pubKey, math.BigIntAdd(CURVE, priE.D, priV.D))
 	// generate aes key
-	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(point))
+	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(CURVE, point))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,10 +129,11 @@ func EncryptKeyGen(pubKey *ecdsa.PublicKey) (capsule *Capsule, keyBytes []byte, 
 
 // Recreate aes key
 func RecreateAESKeyByMyPriKey(capsule *Capsule, aPriKey *ecdsa.PrivateKey) (keyBytes []byte, err error) {
-	point1 := curve.PointScalarAdd(capsule.E, capsule.V)
-	point := curve.PointScalarMul(point1, aPriKey.D)
+	CURVE := aPriKey.Curve
+	point1 := curve.PointScalarAdd(CURVE, capsule.E, capsule.V)
+	point := curve.PointScalarMul(CURVE, point1, aPriKey.D)
 	// generate aes key
-	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(point))
+	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(CURVE, point))
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +141,7 @@ func RecreateAESKeyByMyPriKey(capsule *Capsule, aPriKey *ecdsa.PrivateKey) (keyB
 }
 
 func RecreateAESKeyByMyPriKeyStr(capsule *Capsule, aPriKeyStr string) (keyBytes []byte, err error) {
-	aPriKey, err := utils.PrivateKeyStrToKey(aPriKeyStr)
+	aPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), aPriKeyStr)
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +176,8 @@ func Encrypt(message string, pubKey *ecdsa.PublicKey) (cipherText []byte, capsul
 	return cipherText, capsule, nil
 }
 
-func EncryptByStr(message, pubKeyStr string) (cipherText []byte, capsule *Capsule, err error) {
-	key, err := utils.PublicKeyStrToKey(pubKeyStr)
+func EncryptByStr(CURVE elliptic.Curve, message, pubKeyStr string) (cipherText []byte, capsule *Capsule, err error) {
+	key, err := utils.PublicKeyStrToKey(CURVE, pubKeyStr)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -176,8 +201,8 @@ func EncryptFile(inputFile, outPutFile string, pubKey *ecdsa.PublicKey) (capsule
 }
 
 // encrypt file by pubkey str
-func EncryptFileByStr(inputFile, outPutFile, pubKeyStr string) (capsule *Capsule, err error) {
-	key, err := utils.PublicKeyStrToKey(pubKeyStr)
+func EncryptFileByStr(CURVE elliptic.Curve, inputFile, outPutFile, pubKeyStr string) (capsule *Capsule, err error) {
+	key, err := utils.PublicKeyStrToKey(CURVE, pubKeyStr)
 	if err != nil {
 		return nil, err
 	}
@@ -187,32 +212,35 @@ func EncryptFileByStr(inputFile, outPutFile, pubKeyStr string) (capsule *Capsule
 // generate re-encryption key and sends it to Server
 // rk = sk_A * d^{-1}
 func ReKeyGen(aPriKey *ecdsa.PrivateKey, bPubKey *ecdsa.PublicKey) (*big.Int, *ecdsa.PublicKey, error) {
+	CURVE := aPriKey.Curve
+
 	// generate x,X key-pair
-	priX, pubX, err := curve.GenerateKeys()
+	priX, pubX, err := curve.GenerateKeys(CURVE)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// get d = H3(X_A || pk_B || pk_B^{x_A})
-	point := curve.PointScalarMul(bPubKey, priX.D)
+	point := curve.PointScalarMul(CURVE, bPubKey, priX.D)
 	d := utils.HashToCurve(
+		CURVE,
 		utils.ConcatBytes(
 			utils.ConcatBytes(
-				curve.PointToBytes(pubX),
-				curve.PointToBytes(bPubKey)),
-			curve.PointToBytes(point)))
+				curve.PointToBytes(CURVE, pubX),
+				curve.PointToBytes(CURVE, bPubKey)),
+			curve.PointToBytes(CURVE, point)))
 	// rk = sk_A * d^{-1}
-	rk := math.BigIntMul(aPriKey.D, math.GetInvert(d))
-	rk.Mod(rk, curve.N)
+	rk := math.BigIntMul(CURVE, aPriKey.D, math.GetInvert(CURVE, d))
+	rk.Mod(rk, CURVE.Params().N)
 	return rk, pubX, nil
 }
 
-func ReKeyGenByStr(aPriKeyStr, bPubKeyStr string) (*big.Int, *ecdsa.PublicKey, error) {
-	aPriKey, err := utils.PrivateKeyStrToKey(aPriKeyStr)
+func ReKeyGenByStr(CURVE elliptic.Curve, aPriKeyStr, bPubKeyStr string) (*big.Int, *ecdsa.PublicKey, error) {
+	aPriKey, err := utils.PrivateKeyStrToKey(CURVE, aPriKeyStr)
 	if err != nil {
 		return nil, nil, err
 	}
-	bPubKey, err := utils.PublicKeyStrToKey(bPubKeyStr)
+	bPubKey, err := utils.PublicKeyStrToKey(CURVE, bPubKeyStr)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -221,40 +249,45 @@ func ReKeyGenByStr(aPriKeyStr, bPubKeyStr string) (*big.Int, *ecdsa.PublicKey, e
 
 // Server executes Re-Encryption method
 func ReEncryption(rk *big.Int, capsule *Capsule) (*Capsule, error) {
+	CURVE := capsule.Curve()
 	// check g^s == V * E^{H2(E || V)}
-	x1, y1 := curve.CURVE().ScalarBaseMult(capsule.S.Bytes())
-	tempX, tempY := curve.CURVE().ScalarMult(capsule.E.X, capsule.E.Y,
+	x1, y1 := CURVE.ScalarBaseMult(capsule.S.Bytes())
+	tempX, tempY := CURVE.ScalarMult(capsule.E.X, capsule.E.Y,
 		utils.HashToCurve(
+			CURVE,
 			utils.ConcatBytes(
-				curve.PointToBytes(capsule.E),
-				curve.PointToBytes(capsule.V))).Bytes())
-	x2, y2 := curve.CURVE().Add(capsule.V.X, capsule.V.Y, tempX, tempY)
+				curve.PointToBytes(CURVE, capsule.E),
+				curve.PointToBytes(CURVE, capsule.V))).Bytes())
+	x2, y2 := CURVE.Add(capsule.V.X, capsule.V.Y, tempX, tempY)
 	// if check failed return error
 	if x1.Cmp(x2) != 0 || y1.Cmp(y2) != 0 {
 		return nil, fmt.Errorf("%s", "Capsule not match")
 	}
 	// E' = E^{rk}, V' = V^{rk}
 	newCapsule := &Capsule{
-		E: curve.PointScalarMul(capsule.E, rk),
-		V: curve.PointScalarMul(capsule.V, rk),
+		E: curve.PointScalarMul(CURVE, capsule.E, rk),
+		V: curve.PointScalarMul(CURVE, capsule.V, rk),
 		S: capsule.S,
 	}
 	return newCapsule, nil
 }
 
 func DecryptKeyGen(bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.PublicKey) (keyBytes []byte, err error) {
+	CURVE := bPriKey.Curve
+
 	// S = X_A^{sk_B}
-	S := curve.PointScalarMul(pubX, bPriKey.D)
+	S := curve.PointScalarMul(CURVE, pubX, bPriKey.D)
 	// recreate d = H3(X_A || pk_B || S)
 	d := utils.HashToCurve(
+		CURVE,
 		utils.ConcatBytes(
 			utils.ConcatBytes(
-				curve.PointToBytes(pubX),
-				curve.PointToBytes(&bPriKey.PublicKey)),
-			curve.PointToBytes(S)))
-	point := curve.PointScalarMul(
-		curve.PointScalarAdd(capsule.E, capsule.V), d)
-	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(point))
+				curve.PointToBytes(CURVE, pubX),
+				curve.PointToBytes(CURVE, &bPriKey.PublicKey)),
+			curve.PointToBytes(CURVE, S)))
+	point := curve.PointScalarMul(CURVE,
+		curve.PointScalarAdd(CURVE, capsule.E, capsule.V), d)
+	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(CURVE, point))
 	if err != nil {
 		return nil, err
 	}
@@ -279,11 +312,11 @@ func Decrypt(bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.PublicKey,
 }
 
 func DecryptByStr(bPriKeyStr string, capsule *Capsule, pubXStr string, cipherText []byte) (plainText []byte, err error) {
-	bPriKey, err := utils.PrivateKeyStrToKey(bPriKeyStr)
+	bPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), bPriKeyStr)
 	if err != nil {
 		return nil, err
 	}
-	pubX, err := utils.PublicKeyStrToKey(pubXStr)
+	pubX, err := utils.PublicKeyStrToKey(capsule.Curve(), pubXStr)
 	if err != nil {
 		return nil, err
 	}
@@ -308,11 +341,11 @@ func DecryptFile(inputFile, outPutFile string, bPriKey *ecdsa.PrivateKey, capsul
 
 // decrypt file by str
 func DecryptFileByStr(inputFile, outPutFile string, bPriKeyStr string, capsule *Capsule, pubXStr string) (err error) {
-	bPriKey, err := utils.PrivateKeyStrToKey(bPriKeyStr)
+	bPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), bPriKeyStr)
 	if err != nil {
 		return err
 	}
-	pubX, err := utils.PublicKeyStrToKey(pubXStr)
+	pubX, err := utils.PublicKeyStrToKey(capsule.Curve(), pubXStr)
 	if err != nil {
 		return err
 	}
@@ -333,7 +366,7 @@ func DecryptOnMyPriKey(aPriKey *ecdsa.PrivateKey, capsule *Capsule, cipherText [
 }
 
 func DecryptOnMyOwnStrKey(aPriKeyStr string, capsule *Capsule, cipherText []byte) (plainText []byte, err error) {
-	aPriKey, err := utils.PrivateKeyStrToKey(aPriKeyStr)
+	aPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), aPriKeyStr)
 	if err != nil {
 		return nil, err
 	}
