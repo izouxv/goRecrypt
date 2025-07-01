@@ -1,0 +1,50 @@
+package pre
+
+import (
+	"crypto/elliptic"
+	"fmt"
+	"testing"
+
+	"github.com/izouxv/goRecrypt/curve"
+	"github.com/stretchr/testify/assert"
+)
+
+func Test_ProxyReEncryption(t *testing.T) {
+	curves := []elliptic.Curve{elliptic.P256(), elliptic.P384(), elliptic.P521()}
+
+	for _, CURVE := range curves {
+		t.Run(fmt.Sprintf("Curve_%s", CURVE.Params().Name), func(t *testing.T) {
+			// Alice Generate Alice key-pair
+			aPriKey, aPubKey, _ := curve.GenerateKeys(CURVE)
+			// Bob Generate Bob key-pair
+			bPriKey, bPubKey, _ := curve.GenerateKeys(CURVE)
+
+			//alice gen key
+			capsule, keyBytes, err := EncryptKeyGen(aPubKey)
+			assert.Nil(t, err)
+
+			//alice gen pubX to bob
+			rk, pubX, err := ReKeyGen(aPriKey, bPubKey)
+			assert.Nil(t, err)
+			// fmt.Println("rk:", rk)
+
+			// Server executes re-encrypt
+			newCapsule, err := ReEncryption(rk, capsule)
+			assert.Nil(t, err)
+
+			//bob receive pubX and newCapsule
+			keyBytesDecrypt, err := DecryptKeyGen(bPriKey, newCapsule, pubX)
+			assert.Nil(t, err)
+			assert.Equal(t, keyBytes, keyBytesDecrypt)
+
+			capsuleAsBytes, err := EncodeCapsule(*capsule)
+			assert.Nil(t, err)
+			capsuleTest, err := DecodeCapsule(capsuleAsBytes)
+			assert.Nil(t, err)
+			assert.True(t, capsule.Equal(&capsuleTest))
+			capsuleAsBytes2, err := EncodeCapsule(capsuleTest)
+			assert.Nil(t, err)
+			assert.Equal(t, capsuleAsBytes, capsuleAsBytes2)
+		})
+	}
+}

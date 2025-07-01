@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/izouxv/goRecrypt/curve"
-	"github.com/izouxv/goRecrypt/recrypt"
+	"github.com/izouxv/goRecrypt/pre"
 )
 
 func TestPre(t *testing.T) {
@@ -21,15 +21,15 @@ func TestPre(t *testing.T) {
 	m := []byte("Hello, Proxy Re-Encryption")
 	fmt.Println("origin message:", m)
 	// Alice encrypts to get cipherText and capsule
-	cipherText, capsule, err := recrypt.Encrypt(m, aPubKey)
+	cipherText, capsule, err := pre.Encrypt(m, aPubKey)
 	if err != nil {
 		fmt.Println(err)
 	}
-	capsuleAsBytes, err := recrypt.EncodeCapsule(*capsule)
+	capsuleAsBytes, err := pre.EncodeCapsule(*capsule)
 	if err != nil {
 		fmt.Println("encode error:", err)
 	}
-	capsuleTest, err := recrypt.DecodeCapsule(capsuleAsBytes)
+	capsuleTest, err := pre.DecodeCapsule(capsuleAsBytes)
 	if err != nil {
 		fmt.Println("decode error:", err)
 	}
@@ -37,29 +37,29 @@ func TestPre(t *testing.T) {
 	fmt.Println("capsule after decode:", capsuleTest)
 	fmt.Println("ciphereText:", cipherText)
 	// Test recreate aes key
-	keyBytes, err := recrypt.RecreateAESKeyByMyPriKey(capsule, aPriKey)
+	keyBytes, err := pre.RecreateAESKeyByMyPriKey(capsule, aPriKey)
 	if err != nil {
 		fmt.Println("Recreate key error:", err)
 	}
 	fmt.Println("recreate key:", hex.EncodeToString(keyBytes))
 	// Alice generates re-encryption key
-	rk, pubX, err := recrypt.ReKeyGen(aPriKey, bPubKey)
+	rk, pubX, err := pre.ReKeyGen(aPriKey, bPubKey)
 	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println("rk:", rk)
 	// Server executes re-encrypt
-	newCapsule, err := recrypt.ReEncryption(rk, capsule)
+	newCapsule, err := pre.ReEncryption(rk, capsule)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 	// Bob decrypts the cipherText
-	plainText, err := recrypt.Decrypt(bPriKey, newCapsule, pubX, cipherText)
+	plainText, err := pre.Decrypt(bPriKey, newCapsule, pubX, cipherText)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	plainTextByMyPri, err := recrypt.DecryptOnMyPriKey(aPriKey, capsule, cipherText)
+	plainTextByMyPri, err := pre.DecryptOnMyPriKey(aPriKey, capsule, cipherText)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -67,15 +67,15 @@ func TestPre(t *testing.T) {
 	// get plainText
 	fmt.Println("plainText:", string(plainText))
 
-	fileCapsule, err := recrypt.EncryptFile("a.txt", "a_encrypt.txt", aPubKey)
+	fileCapsule, err := pre.EncryptFile("a.txt", "a_encrypt.txt", aPubKey)
 	if err != nil {
 		fmt.Println("File Encrypt Error:", err)
 	}
-	fileNewCapsule, err := recrypt.ReEncryption(rk, fileCapsule)
+	fileNewCapsule, err := pre.ReEncryption(rk, fileCapsule)
 	if err != nil {
 		fmt.Println("ReEncryption Error:", err)
 	}
-	err = recrypt.DecryptFile("a_encrypt.txt", "a_decrypt.txt", bPriKey, fileNewCapsule, pubX)
+	err = pre.DecryptFile("a_encrypt.txt", "a_decrypt.txt", bPriKey, fileNewCapsule, pubX)
 	if err != nil {
 		fmt.Println("Decrypt Error:", err)
 	}

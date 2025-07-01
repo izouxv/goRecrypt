@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/rand"
+	"fmt"
 	"math/big"
 
 	"github.com/izouxv/goRecrypt/curve"
@@ -78,4 +80,16 @@ func PublicKeyBytesToKey(CURVE elliptic.Curve, pubKeyAsBytes []byte) (*ecdsa.Pub
 		Y:     y,
 	}
 	return key, nil
+}
+
+func GenerateSeed(size int) ([]byte, error) {
+	if size < 16 || size > 64 {
+		return nil, fmt.Errorf("seed size must be between 16 and 64 bytes, but got %d", size)
+	}
+	seed := make([]byte, size)
+	_, err := rand.Read(seed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate random seed: %w", err)
+	}
+	return seed, nil
 }

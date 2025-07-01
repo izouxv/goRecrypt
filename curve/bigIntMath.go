@@ -1,4 +1,4 @@
-package math
+package curve
 
 import (
 	"crypto/elliptic"

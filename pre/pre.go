@@ -1,4 +1,4 @@
-package recrypt
+package pre
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"math/big"
 
 	"github.com/izouxv/goRecrypt/curve"
-	"github.com/izouxv/goRecrypt/math"
 	"github.com/izouxv/goRecrypt/utils"
 )
 
@@ -117,9 +116,9 @@ func EncryptKeyGen(pubKey *ecdsa.PublicKey) (capsule *Capsule, keyBytes []byte, 
 			curve.PointToBytes(CURVE, pubE),
 			curve.PointToBytes(CURVE, pubV)))
 	// get s = v + e * H2(E || V)
-	s = math.BigIntAdd(CURVE, priV.D, math.BigIntMul(CURVE, priE.D, h))
+	s = curve.BigIntAdd(CURVE, priV.D, curve.BigIntMul(CURVE, priE.D, h))
 	// get (pk_A)^{e+v}
-	point := curve.PointScalarMul(CURVE, pubKey, math.BigIntAdd(CURVE, priE.D, priV.D))
+	point := curve.PointScalarMul(CURVE, pubKey, curve.BigIntAdd(CURVE, priE.D, priV.D))
 	// generate aes key
 	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(CURVE, point))
 	if err != nil {
@@ -237,7 +236,7 @@ func ReKeyGen(aPriKey *ecdsa.PrivateKey, bPubKey *ecdsa.PublicKey) (*big.Int, *e
 				curve.PointToBytes(CURVE, bPubKey)),
 			curve.PointToBytes(CURVE, point)))
 	// rk = sk_A * d^{-1}
-	rk := math.BigIntMul(CURVE, aPriKey.D, math.GetInvert(CURVE, d))
+	rk := curve.BigIntMul(CURVE, aPriKey.D, curve.GetInvert(CURVE, d))
 	rk.Mod(rk, CURVE.Params().N)
 	return rk, pubX, nil
 }
