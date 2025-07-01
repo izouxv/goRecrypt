@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"encoding/hex"
 	"math/big"
 
 	"github.com/izouxv/goRecrypt/curve"
@@ -36,16 +35,16 @@ func HashToCurve(CURVE elliptic.Curve, hash []byte) *big.Int {
 }
 
 // convert private key to string
-func PrivateKeyToString(privateKey *ecdsa.PrivateKey) string {
-	return hex.EncodeToString(privateKey.D.Bytes())
+func PrivateKeyToString(privateKey *ecdsa.PrivateKey) []byte {
+	return privateKey.D.Bytes()
 }
 
 // convert string to private key
-func PrivateKeyStrToKey(CURVE elliptic.Curve, privateKeyStr string) (*ecdsa.PrivateKey, error) {
-	priKeyAsBytes, err := hex.DecodeString(privateKeyStr)
-	if err != nil {
-		return nil, err
-	}
+func PrivateKeyBytesToKey(CURVE elliptic.Curve, priKeyAsBytes []byte) (*ecdsa.PrivateKey, error) {
+	// priKeyAsBytes, err := hex.DecodeString(privateKeyStr)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	d := new(big.Int).SetBytes(priKeyAsBytes)
 	// compute public key
 	x, y := CURVE.ScalarBaseMult(priKeyAsBytes)
@@ -60,18 +59,19 @@ func PrivateKeyStrToKey(CURVE elliptic.Curve, privateKeyStr string) (*ecdsa.Priv
 }
 
 // convert public key to string
-func PublicKeyToString(publicKey *ecdsa.PublicKey) string {
+func PublicKeyToBytes(publicKey *ecdsa.PublicKey) []byte {
 	pubKeyBytes := curve.PointToBytes(publicKey.Curve, publicKey)
-	return hex.EncodeToString(pubKeyBytes)
+	return pubKeyBytes
 }
 
 // convert public key string to key
-func PublicKeyStrToKey(CURVE elliptic.Curve, pubKey string) (*ecdsa.PublicKey, error) {
-	pubKeyAsBytes, err := hex.DecodeString(pubKey)
-	if err != nil {
-		return nil, err
-	}
-	x, y := elliptic.Unmarshal(CURVE, pubKeyAsBytes)
+func PublicKeyBytesToKey(CURVE elliptic.Curve, pubKeyAsBytes []byte) (*ecdsa.PublicKey, error) {
+	// pubKeyAsBytes, err := hex.DecodeString(pubKey)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// x, y := elliptic.Unmarshal(CURVE, pubKeyAsBytes)
+	x, y := elliptic.UnmarshalCompressed(CURVE, pubKeyAsBytes)
 	key := &ecdsa.PublicKey{
 		Curve: CURVE,
 		X:     x,

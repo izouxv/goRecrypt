@@ -18,7 +18,7 @@ func TestPre(t *testing.T) {
 	// Bob Generate Bob key-pair
 	bPriKey, bPubKey, _ := curve.GenerateKeys(CURVE)
 	// plain text
-	m := "Hello, Proxy Re-Encryption"
+	m := []byte("Hello, Proxy Re-Encryption")
 	fmt.Println("origin message:", m)
 	// Alice encrypts to get cipherText and capsule
 	cipherText, capsule, err := recrypt.Encrypt(m, aPubKey)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 
@@ -33,15 +32,22 @@ func (c *Capsule) Encode() ([]byte, error) {
 	if err := utils.WriteVarBytes(buf, []byte(c.Curve().Params().Name)); err != nil {
 		return nil, err
 	}
-	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.E.Curve, c.E)); err != nil {
+	if err := utils.WriteVarBytes(buf, []byte(utils.PublicKeyToBytes(c.E))); err != nil {
 		return nil, err
 	}
-	if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.V.Curve, c.V)); err != nil {
+	if err := utils.WriteVarBytes(buf, []byte(utils.PublicKeyToBytes(c.V))); err != nil {
 		return nil, err
 	}
+	// if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.E.Curve, c.E)); err != nil {
+	// 	return nil, err
+	// }
+	// if err := utils.WriteVarBytes(buf, curve.PointToBytes(c.V.Curve, c.V)); err != nil {
+	// 	return nil, err
+	// }
 	if err := utils.WriteVarBytes(buf, c.S.Bytes()); err != nil {
 		return nil, err
 	}
+
 	return buf.Bytes(), nil
 }
 
@@ -59,13 +65,14 @@ func (c *Capsule) Decode(data []byte) error {
 		if err != nil {
 			return nil, err
 		}
-		x, y := elliptic.Unmarshal(CURVE, pubKeyAsBytes)
-		k := &ecdsa.PublicKey{
-			Curve: CURVE,
-			X:     x,
-			Y:     y,
-		}
-		return k, nil
+		return utils.PublicKeyBytesToKey(CURVE, pubKeyAsBytes)
+		// x, y := elliptic.Unmarshal(CURVE, pubKeyAsBytes)
+		// k := &ecdsa.PublicKey{
+		// 	Curve: CURVE,
+		// 	X:     x,
+		// 	Y:     y,
+		// }
+		// return k, nil
 	}
 
 	k, err := decode()
@@ -140,8 +147,8 @@ func RecreateAESKeyByMyPriKey(capsule *Capsule, aPriKey *ecdsa.PrivateKey) (keyB
 	return keyBytes, nil
 }
 
-func RecreateAESKeyByMyPriKeyStr(capsule *Capsule, aPriKeyStr string) (keyBytes []byte, err error) {
-	aPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), aPriKeyStr)
+func RecreateAESKeyByMyPriKeyBytes(capsule *Capsule, aPriKeyBytes []byte) (keyBytes []byte, err error) {
+	aPriKey, err := utils.PrivateKeyBytesToKey(capsule.Curve(), aPriKeyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -149,10 +156,10 @@ func RecreateAESKeyByMyPriKeyStr(capsule *Capsule, aPriKeyStr string) (keyBytes 
 }
 
 func EncryptMessageByAESKey(message []byte, keyBytes []byte) (cipherText []byte, err error) {
-	key := hex.EncodeToString(keyBytes)
+	// key := keyBytes // hex.EncodeToString(keyBytes)
 	// use aes gcm algorithm to encrypt
 	// mark keyBytes[:12] as nonce
-	cipherText, err = GCMEncrypt(message, key[:32], keyBytes[:12], nil)
+	cipherText, err = GCMEncrypt(message, keyBytes[:32], keyBytes[:12], nil)
 	if err != nil {
 		return nil, err
 	}
@@ -161,23 +168,23 @@ func EncryptMessageByAESKey(message []byte, keyBytes []byte) (cipherText []byte,
 
 // Encrypt the message
 // AES GCM + Proxy Re-Encryption
-func Encrypt(message string, pubKey *ecdsa.PublicKey) (cipherText []byte, capsule *Capsule, err error) {
+func Encrypt(message []byte, pubKey *ecdsa.PublicKey) (cipherText []byte, capsule *Capsule, err error) {
 	capsule, keyBytes, err := EncryptKeyGen(pubKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	key := hex.EncodeToString(keyBytes)
+	// key := keyBytes // hex.EncodeToString(keyBytes)
 	// use aes gcm algorithm to encrypt
 	// mark keyBytes[:12] as nonce
-	cipherText, err = GCMEncrypt([]byte(message), key[:32], keyBytes[:12], nil)
+	cipherText, err = GCMEncrypt(message, keyBytes[:32], keyBytes[:12], nil)
 	if err != nil {
 		return nil, nil, err
 	}
 	return cipherText, capsule, nil
 }
 
-func EncryptByStr(CURVE elliptic.Curve, message, pubKeyStr string) (cipherText []byte, capsule *Capsule, err error) {
-	key, err := utils.PublicKeyStrToKey(CURVE, pubKeyStr)
+func EncryptByStr(CURVE elliptic.Curve, message []byte, pubKeyBytes []byte) (cipherText []byte, capsule *Capsule, err error) {
+	key, err := utils.PublicKeyBytesToKey(CURVE, pubKeyBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -190,10 +197,10 @@ func EncryptFile(inputFile, outPutFile string, pubKey *ecdsa.PublicKey) (capsule
 	if err != nil {
 		return nil, err
 	}
-	key := hex.EncodeToString(keyBytes)
+	// key := keyBytes // hex.EncodeToString(keyBytes)
 	// use aes ofb algorithm to encrypt
 	// mark keyBytes[:16] as nonce
-	err = OFBFileEncrypt(key[:32], keyBytes[:16], inputFile, outPutFile)
+	err = OFBFileEncrypt(keyBytes[:32], keyBytes[:16], inputFile, outPutFile)
 	if err != nil {
 		return nil, err
 	}
@@ -201,8 +208,8 @@ func EncryptFile(inputFile, outPutFile string, pubKey *ecdsa.PublicKey) (capsule
 }
 
 // encrypt file by pubkey str
-func EncryptFileByStr(CURVE elliptic.Curve, inputFile, outPutFile, pubKeyStr string) (capsule *Capsule, err error) {
-	key, err := utils.PublicKeyStrToKey(CURVE, pubKeyStr)
+func EncryptFileByStr(CURVE elliptic.Curve, inputFile, outPutFile string, pubKeyBytes []byte) (capsule *Capsule, err error) {
+	key, err := utils.PublicKeyBytesToKey(CURVE, pubKeyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -235,12 +242,12 @@ func ReKeyGen(aPriKey *ecdsa.PrivateKey, bPubKey *ecdsa.PublicKey) (*big.Int, *e
 	return rk, pubX, nil
 }
 
-func ReKeyGenByStr(CURVE elliptic.Curve, aPriKeyStr, bPubKeyStr string) (*big.Int, *ecdsa.PublicKey, error) {
-	aPriKey, err := utils.PrivateKeyStrToKey(CURVE, aPriKeyStr)
+func ReKeyGenByStr(CURVE elliptic.Curve, aPriKeyBytes, bPubKeyBytes []byte) (*big.Int, *ecdsa.PublicKey, error) {
+	aPriKey, err := utils.PrivateKeyBytesToKey(CURVE, aPriKeyBytes)
 	if err != nil {
 		return nil, nil, err
 	}
-	bPubKey, err := utils.PublicKeyStrToKey(CURVE, bPubKeyStr)
+	bPubKey, err := utils.PublicKeyBytesToKey(CURVE, bPubKeyBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -301,22 +308,21 @@ func Decrypt(bPriKey *ecdsa.PrivateKey, capsule *Capsule, pubX *ecdsa.PublicKey,
 		return nil, err
 	}
 	// recreate aes key = G((E' * V')^d)
-	key := hex.EncodeToString(keyBytes)
 	// use aes gcm to decrypt
 	// mark keyBytes[:12] as nonce
-	plainText, err = GCMDecrypt(cipherText, key[:32], keyBytes[:12], nil)
+	plainText, err = GCMDecrypt(cipherText, keyBytes[:32], keyBytes[:12], nil)
 	if err != nil {
 		return nil, err
 	}
 	return plainText, nil
 }
 
-func DecryptByStr(bPriKeyStr string, capsule *Capsule, pubXStr string, cipherText []byte) (plainText []byte, err error) {
-	bPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), bPriKeyStr)
+func DecryptByStr(bPriKeyBytes []byte, capsule *Capsule, pubXBytes []byte, cipherText []byte) (plainText []byte, err error) {
+	bPriKey, err := utils.PrivateKeyBytesToKey(capsule.Curve(), bPriKeyBytes)
 	if err != nil {
 		return nil, err
 	}
-	pubX, err := utils.PublicKeyStrToKey(capsule.Curve(), pubXStr)
+	pubX, err := utils.PublicKeyBytesToKey(capsule.Curve(), pubXBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -329,10 +335,9 @@ func DecryptFile(inputFile, outPutFile string, bPriKey *ecdsa.PrivateKey, capsul
 	if err != nil {
 		return err
 	}
-	key := hex.EncodeToString(keyBytes)
 	// use aes gcm to decrypt
 	// mark keyBytes[:16] as nonce
-	err = OFBFileDecrypt(key[:32], keyBytes[:16], inputFile, outPutFile)
+	err = OFBFileDecrypt(keyBytes[:32], keyBytes[:16], inputFile, outPutFile)
 	if err != nil {
 		return err
 	}
@@ -340,12 +345,12 @@ func DecryptFile(inputFile, outPutFile string, bPriKey *ecdsa.PrivateKey, capsul
 }
 
 // decrypt file by str
-func DecryptFileByStr(inputFile, outPutFile string, bPriKeyStr string, capsule *Capsule, pubXStr string) (err error) {
-	bPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), bPriKeyStr)
+func DecryptFileByStr(inputFile, outPutFile string, bPriKeyBytes []byte, capsule *Capsule, pubXBytes []byte) (err error) {
+	bPriKey, err := utils.PrivateKeyBytesToKey(capsule.Curve(), bPriKeyBytes)
 	if err != nil {
 		return err
 	}
-	pubX, err := utils.PublicKeyStrToKey(capsule.Curve(), pubXStr)
+	pubX, err := utils.PublicKeyBytesToKey(capsule.Curve(), pubXBytes)
 	if err != nil {
 		return err
 	}
@@ -358,15 +363,14 @@ func DecryptOnMyPriKey(aPriKey *ecdsa.PrivateKey, capsule *Capsule, cipherText [
 	if err != nil {
 		return nil, err
 	}
-	key := hex.EncodeToString(keyBytes)
 	// use aes gcm algorithm to encrypt
 	// mark keyBytes[:12] as nonce
-	plainText, err = GCMDecrypt(cipherText, key[:32], keyBytes[:12], nil)
+	plainText, err = GCMDecrypt(cipherText, keyBytes[:32], keyBytes[:12], nil)
 	return plainText, err
 }
 
-func DecryptOnMyOwnStrKey(aPriKeyStr string, capsule *Capsule, cipherText []byte) (plainText []byte, err error) {
-	aPriKey, err := utils.PrivateKeyStrToKey(capsule.Curve(), aPriKeyStr)
+func DecryptOnMyOwnStrKey(aPriKeyStr []byte, capsule *Capsule, cipherText []byte) (plainText []byte, err error) {
+	aPriKey, err := utils.PrivateKeyBytesToKey(capsule.Curve(), aPriKeyStr)
 	if err != nil {
 		return nil, err
 	}

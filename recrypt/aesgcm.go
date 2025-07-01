@@ -7,8 +7,8 @@ import (
 	"os"
 )
 
-func GCMEncrypt(plaintext []byte, key string, iv []byte, additionalData []byte) (cipherText []byte, err error) {
-	block, err := aes.NewCipher([]byte(key))
+func GCMEncrypt(plaintext []byte, key []byte, iv []byte, additionalData []byte) (cipherText []byte, err error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
@@ -20,8 +20,8 @@ func GCMEncrypt(plaintext []byte, key string, iv []byte, additionalData []byte) 
 	return cipherText, nil
 }
 
-func GCMDecrypt(cipherText []byte, key string, iv []byte, additionalData []byte) (plainText []byte, err error) {
-	block, err := aes.NewCipher([]byte(key))
+func GCMDecrypt(cipherText []byte, key []byte, iv []byte, additionalData []byte) (plainText []byte, err error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
@@ -36,13 +36,13 @@ func GCMDecrypt(cipherText []byte, key string, iv []byte, additionalData []byte)
 	return plainText, nil
 }
 
-func OFBFileEncrypt(key string, iv []byte, infileName string, encfileName string) (err error) {
+func OFBFileEncrypt(key []byte, iv []byte, infileName string, encfileName string) (err error) {
 	inFile, err := os.Open(infileName)
 	if err != nil {
 		panic(err)
 	}
 	defer inFile.Close()
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return err
 	}
@@ -63,13 +63,13 @@ func OFBFileEncrypt(key string, iv []byte, infileName string, encfileName string
 	return nil
 }
 
-func OFBFileDecrypt(key string, iv []byte, encfileName string, decfileName string) (err error) {
+func OFBFileDecrypt(key []byte, iv []byte, encfileName string, decfileName string) (err error) {
 	inFile, err := os.Open(encfileName)
 	if err != nil {
 		return err
 	}
 	defer inFile.Close()
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return err
 	}

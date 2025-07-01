@@ -7,7 +7,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"encoding/hex"
 	"math/big"
 	"strings"
 )
@@ -22,18 +21,18 @@ func GenerateKeys(CURVE elliptic.Curve) (*ecdsa.PrivateKey, *ecdsa.PublicKey, er
 }
 
 // ECDSA Sign
-func Sign(privateKeyStr string, messageHash string) (string, error) {
-	privateKeyBytes, err := hex.DecodeString(privateKeyStr)
-	if err != nil {
-		return "", err
-	}
+func Sign(privateKeyBytes []byte, messageHash string) ([]byte, error) {
+	// privateKeyBytes, err := hex.DecodeString(privateKeyStr)
+	// if err != nil {
+	// 	return "", err
+	// }
 	privateKey, err := x509.ParseECPrivateKey(privateKeyBytes)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	r, s, err := ecdsa.Sign(rand.Reader, privateKey, []byte(messageHash))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	rStr, _ := r.MarshalText()
 	sStr, _ := s.MarshalText()
@@ -42,23 +41,24 @@ func Sign(privateKeyStr string, messageHash string) (string, error) {
 	defer w.Close()
 	_, err = w.Write([]byte(string(rStr) + "+" + string(sStr)))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	w.Flush()
-	return hex.EncodeToString(result.Bytes()), nil
+	return result.Bytes(), nil
+	// return hex.EncodeToString(result.Bytes()), nil
 }
 
 // ECDSA Verify
-func Verify(messageHash, signature string, publicKey string) (bool, error) {
-	publicKeyBytes, err := hex.DecodeString(publicKey)
-	if err != nil {
-		return false, err
-	}
+func Verify(messageHash string, sigBytes, publicKeyBytes []byte) (bool, error) {
+	// publicKeyBytes, err := hex.DecodeString(publicKey)
+	// if err != nil {
+	// 	return false, err
+	// }
 	pubKey, _ := x509.ParsePKIXPublicKey(publicKeyBytes)
-	sigBytes, err := hex.DecodeString(signature)
-	if err != nil {
-		return false, err
-	}
+	// sigBytes, err := hex.DecodeString(signature)
+	// if err != nil {
+	// 	return false, err
+	// }
 	reader, err := gzip.NewReader(bytes.NewBuffer(sigBytes))
 	if err != nil {
 		return false, err

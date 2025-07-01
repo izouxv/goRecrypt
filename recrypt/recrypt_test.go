@@ -10,6 +10,7 @@ import (
 
 func Test_ProxyReEncryption(t *testing.T) {
 	CURVE := elliptic.P256()
+	CURVE = elliptic.P521()
 
 	// Alice Generate Alice key-pair
 	aPriKey, aPubKey, _ := curve.GenerateKeys(CURVE)

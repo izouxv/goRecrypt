@@ -40,6 +40,7 @@ func BigIntMulBase(CURVE elliptic.Curve, k *big.Int) *CurvePoint {
 }
 
 func PointToBytes(CURVE elliptic.Curve, point *CurvePoint) (res []byte) {
-	res = elliptic.Marshal(CURVE, point.X, point.Y)
+	// res = elliptic.Marshal(CURVE, point.X, point.Y)
+	res = elliptic.MarshalCompressed(CURVE, point.X, point.Y)
 	return
 }
