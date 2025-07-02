@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
@@ -13,7 +14,9 @@ import (
 	"strings"
 
 	"github.com/izouxv/goRecrypt/curve"
+	"github.com/izouxv/goRecrypt/pre"
 	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/sha3"
 )
 
 const (
@@ -33,6 +36,14 @@ var (
 	// ErrInvalidDerivationPath is returned for an invalid derivation path.
 	ErrInvalidDerivationPath = errors.New("invalid derivation path")
 )
+
+type Signer interface {
+	Sign(hash []byte) ([]byte, error)
+	Verify(hash []byte, signature []byte) bool
+	PublicKey2() *ecdsa.PublicKey
+}
+
+var _ Signer = (*Key)(nil)
 
 // Key represents an HD key.
 type Key struct {
@@ -90,6 +101,10 @@ func NewMaster(seed []byte, c elliptic.Curve) (*Key, error) {
 		ParentFP:   []byte{0x00, 0x00, 0x00, 0x00},
 		Curve:      c,
 	}, nil
+}
+
+func (k *Key) PublicKey2() *ecdsa.PublicKey {
+	return k.PublicKey
 }
 
 // Derive derives a child key from the current key.
@@ -255,4 +270,47 @@ func (k *Key) DerivePath(path string) (*Key, error) {
 	}
 
 	return currentKey, nil
+}
+
+// Sign signs a hash using the key's private key.
+// Returns an ASN.1 DER-encoded signature.
+func (k *Key) Sign(hash []byte) ([]byte, error) {
+	if k.PrivateKey == nil {
+		return nil, errors.New("cannot sign with a public-only key")
+	}
+	return ecdsa.SignASN1(rand.Reader, k.PrivateKey, hash)
+}
+
+// Verify checks a signature against the key's public key.
+func (k *Key) Verify(hash []byte, signature []byte) bool {
+	return ecdsa.VerifyASN1(k.PublicKey, hash, signature)
+}
+
+// Address generates an Ethereum-style address from the key's public key.
+func (k *Key) Address() ([]byte, error) {
+	if k.PublicKey == nil {
+		return nil, errors.New("cannot generate address from a key without a public key")
+	}
+
+	// The address is the Keccak-256 hash of the uncompressed public key (x and y coordinates),
+	// taking the last 20 bytes. We must not include the 0x04 prefix from standard marshaling.
+	pubBytes := elliptic.Marshal(k.Curve, k.PublicKey.X, k.PublicKey.Y)
+
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write(pubBytes[1:]) // Skip the 0x04 prefix
+
+	return hash.Sum(nil)[12:], nil // Take the last 20 bytes
+}
+
+// GenerateThresholdReKey generates n re-encryption key shares for a given recipient's public key,
+// with a threshold of t required for recombination.
+// This is a convenience method that wraps pre.ThresholdReKeyGen.
+func (k *Key) GenerateThresholdReKey(recipientPubKey *ecdsa.PublicKey, n, t int) ([]*pre.ReKeyShare, *ecdsa.PublicKey, error) {
+	if k.PrivateKey == nil {
+		return nil, nil, errors.New("cannot generate re-key shares with a public-only key")
+	}
+	if k.Curve != recipientPubKey.Curve {
+		return nil, nil, errors.New("recipient public key is on a different curve")
+	}
+	return pre.ThresholdReKeyGen(k.PrivateKey, recipientPubKey, n, t)
 }

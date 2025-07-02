@@ -1,0 +1,115 @@
+syntax = "proto3";
+package gorecrypt.v1;
+
+option go_package = "github.com/izouxv/goRecrypt/api/v1;apiv1";
+
+// GoRecryptService 提供密钥管理、加密和重加密的 API。
+service GoRecryptService {
+  // 从随机种子创建一个新的主 HD 密钥，用密码加密后返回 keystore JSON。
+  rpc CreateMasterKey(CreateMasterKeyRequest) returns (CreateMasterKeyResponse);
+
+  // 使用 BIP32 路径从加密的主密钥派生子密钥。
+  rpc DeriveKey(DeriveKeyRequest) returns (DeriveKeyResponse);
+
+  // 为给定的公钥加密一条消息。
+  rpc Encrypt(EncryptRequest) returns (EncryptResponse);
+
+  // 生成门限重加密密钥份额。
+  rpc GenerateThresholdReKey(GenerateThresholdReKeyRequest)
+      returns (GenerateThresholdReKeyResponse);
+
+  // 使用密钥份额执行部分重加密。
+  rpc PartialReEncrypt(PartialReEncryptRequest)
+      returns (PartialReEncryptResponse);
+
+  // 将部分重加密的胶囊组合成最终的胶囊。
+  rpc CombineCapsules(CombineCapsulesRequest) returns (CombineCapsulesResponse);
+
+  // 使用重加密后的胶囊解密消息。
+  rpc Decrypt(DecryptRequest) returns (DecryptResponse);
+
+  // 用 keystore 中的密钥对消息哈希进行签名。
+  rpc Sign(SignRequest) returns (SignResponse);
+}
+
+// --- 消息体 ---
+
+message CreateMasterKeyRequest {
+  string password = 1;
+  string curve_name = 2; // 例如 "P-256", "secp256k1"
+}
+
+message CreateMasterKeyResponse {
+  bytes keystore_json = 1; // 加密后的主密钥
+  bytes public_key = 2;    // 主公钥
+}
+
+message DeriveKeyRequest {
+  bytes keystore_json = 1;
+  string password = 2;
+  string derivation_path = 3; // 例如 "m/44'/60'/0'/0/0"
+}
+
+message DeriveKeyResponse {
+  bytes public_key = 1;
+  bytes address = 2; // 例如以太坊地址
+}
+
+message EncryptRequest {
+  bytes public_key = 1;
+  bytes plaintext = 2;
+  bytes additional_data = 3; // 用于 AES-GCM
+}
+
+message EncryptResponse {
+  bytes ciphertext = 1;
+  bytes capsule = 2;
+}
+
+message GenerateThresholdReKeyRequest {
+  bytes keystore_json = 1;
+  string password = 2;
+  bytes recipient_public_key = 3;
+  int32 n = 4; // 总份额数
+  int32 t = 5; // 门限值
+}
+
+message GenerateThresholdReKeyResponse {
+  repeated bytes rekey_shares = 1;
+  bytes pub_x = 2;
+}
+
+message PartialReEncryptRequest {
+  bytes rekey_share = 1;
+  bytes capsule = 2;
+}
+
+message PartialReEncryptResponse { bytes partial_capsule = 1; }
+
+message CombineCapsulesRequest {
+  repeated bytes partial_capsules = 1;
+  string curve_name = 2;
+}
+
+message CombineCapsulesResponse { bytes final_capsule = 1; }
+
+message DecryptRequest {
+  bytes keystore_json = 1;
+  string password = 2;
+  bytes capsule = 3;
+  bytes pub_x = 4;
+  bytes ciphertext = 5;
+}
+
+message DecryptResponse { bytes plaintext = 1; }
+
+message SignRequest {
+  bytes keystore_json = 1;
+  string password = 2;
+  string derivation_path = 3;
+  bytes hash = 4; // 要签名的 32 字节消息哈希
+}
+
+message SignResponse {
+  bytes signature = 1; // ASN.1 DER 编码的签名
+}

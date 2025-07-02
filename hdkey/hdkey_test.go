@@ -2,10 +2,13 @@ package hdkey
 
 import (
 	"crypto/elliptic"
+	"crypto/sha256"
 	"encoding/hex"
 	"testing"
 
+	"github.com/izouxv/goRecrypt/curve"
 	"github.com/izouxv/goRecrypt/pre"
+	"github.com/izouxv/goRecrypt/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -171,4 +174,93 @@ func TestKeyEncryptionDecryption(t *testing.T) {
 	plainTextChild, err := pre.DecryptOnMyPriKey(childKey.PrivateKey, capsuleChild, cipherTextChild)
 	require.NoError(t, err)
 	assert.Equal(t, message, plainTextChild)
+}
+
+func TestKey_GenerateThresholdReKey(t *testing.T) {
+	// 1. Setup: Create Alice's master key and Bob's key
+	seed, _ := hex.DecodeString("202122232425262728292a2b2c2d2e2f")
+	curve := elliptic.P256()
+	aliceKey, err := NewMaster(seed, curve)
+	require.NoError(t, err)
+
+	bobPrivKey, bobPubKey, err := utils.GenerateKeys(curve)
+	require.NoError(t, err)
+
+	// 2. Use the method on alice's key to generate shares
+	n, threshold := 5, 3
+	shares, pubX, err := aliceKey.GenerateThresholdReKey(bobPubKey, n, threshold)
+	require.NoError(t, err)
+	require.Len(t, shares, n)
+	require.NotNil(t, pubX)
+
+	// 3. Encrypt a message with Alice's public key
+	message := []byte("test message for hdkey threshold re-key generation")
+	cipherText, originalCapsule, err := pre.Encrypt(message, aliceKey.PublicKey)
+	require.NoError(t, err)
+
+	// 4. Simulate re-encryption and combination
+	partialCapsules := make([]*pre.PartialCapsule, 0, threshold)
+	for i := 0; i < threshold; i++ {
+		pCap, err := pre.PartialReEncryption(shares[i], originalCapsule)
+		require.NoError(t, err)
+		partialCapsules = append(partialCapsules, pCap)
+	}
+
+	finalCapsule, err := pre.CombineCapsules(partialCapsules, curve)
+	require.NoError(t, err)
+
+	// 5. Bob decrypts
+	plainText, err := pre.Decrypt(bobPrivKey, finalCapsule, pubX, cipherText)
+	require.NoError(t, err)
+	assert.Equal(t, message, plainText)
+}
+
+func TestEthereumIntegration(t *testing.T) {
+	// 1. Setup: Use secp256k1 curve and a test seed
+	curve := curve.CurveGet("secp256k1")
+	require.NotNil(t, curve, "secp256k1 curve should be registered")
+
+	seed, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	masterKey, err := NewMaster(seed, curve)
+	require.NoError(t, err)
+
+	// 2. Derive the standard Ethereum account key (BIP44)
+	path := "m/44'/60'/0'/0/0"
+	accountKey, err := masterKey.DerivePath(path)
+	require.NoError(t, err)
+	require.NotNil(t, accountKey)
+
+	// 3. Generate the Ethereum address from the derived public key
+	address, err := accountKey.Address()
+	require.NoError(t, err)
+	t.Logf("Derived Ethereum Address: 0x%s", hex.EncodeToString(address))
+	// A real address would be checked against a known value if the seed was standard.
+	// For this test, we just ensure it's 20 bytes long.
+	require.Len(t, address, 20)
+
+	// 4. Create a dummy transaction hash to be signed
+	txData := []byte("this is a dummy transaction to be signed")
+	txHash := sha256.Sum256(txData)
+
+	// 5. Sign the transaction hash with the derived private key
+	signature, err := accountKey.Sign(txHash[:])
+	require.NoError(t, err)
+	require.NotEmpty(t, signature)
+	t.Logf("Signature (ASN.1 DER): %s", hex.EncodeToString(signature))
+
+	// 6. Verify the signature with the derived public key
+	// Verification should succeed with the correct key and hash
+	valid := accountKey.Verify(txHash[:], signature)
+	assert.True(t, valid, "Signature should be valid with the correct key")
+
+	// 7. Negative tests for verification
+	// Verification should fail with a different hash
+	wrongTxData := []byte("this is a different transaction")
+	wrongTxHash := sha256.Sum256(wrongTxData)
+	invalid := accountKey.Verify(wrongTxHash[:], signature)
+	assert.False(t, invalid, "Signature should be invalid with a different hash")
+
+	// Verification should fail with a different public key (e.g., the master key)
+	invalid = masterKey.Verify(txHash[:], signature)
+	assert.False(t, invalid, "Signature should be invalid with a different public key")
 }

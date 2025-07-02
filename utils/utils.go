@@ -12,7 +12,16 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// concat bytes
+// GenerateKeys creates a new ECDSA private and public key pair.
+func GenerateKeys(CURVE elliptic.Curve) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
+	privateKey, err := ecdsa.GenerateKey(CURVE, rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, &privateKey.PublicKey, nil
+}
+
+// ConcatBytes concatenates two byte slices.
 func ConcatBytes(a, b []byte) []byte {
 	var buf bytes.Buffer
 	buf.Write(a)
@@ -20,7 +29,7 @@ func ConcatBytes(a, b []byte) []byte {
 	return buf.Bytes()
 }
 
-// convert message to hash value
+// Sha3Hash converts a message to a hash value using SHA3-256.
 func Sha3Hash(message []byte) ([]byte, error) {
 	sha := sha3.New256()
 	_, err := sha.Write(message)
@@ -30,25 +39,21 @@ func Sha3Hash(message []byte) ([]byte, error) {
 	return sha.Sum(nil), nil
 }
 
-// map hash value to curve
+// HashToCurve maps a hash value to a big.Int on the curve.
 func HashToCurve(CURVE elliptic.Curve, hash []byte) *big.Int {
 	hashInt := new(big.Int).SetBytes(hash)
 	return hashInt.Mod(hashInt, CURVE.Params().N)
 }
 
-// convert private key to string
-func PrivateKeyToString(privateKey *ecdsa.PrivateKey) []byte {
+// PrivateKeyToBytes converts a private key to its byte representation (the D value).
+func PrivateKeyToBytes(privateKey *ecdsa.PrivateKey) []byte {
 	return privateKey.D.Bytes()
 }
 
-// convert string to private key
-func PrivateKeyBytesToKey(CURVE elliptic.Curve, priKeyAsBytes []byte) (*ecdsa.PrivateKey, error) {
-	// priKeyAsBytes, err := hex.DecodeString(privateKeyStr)
-	// if err != nil {
-	// 	return nil, err
-	// }
+// PrivateKeyFromBytes converts a byte slice to a private key.
+func PrivateKeyFromBytes(CURVE elliptic.Curve, priKeyAsBytes []byte) (*ecdsa.PrivateKey, error) {
 	d := new(big.Int).SetBytes(priKeyAsBytes)
-	// compute public key
+	// Compute public key.
 	x, y := CURVE.ScalarBaseMult(priKeyAsBytes)
 	pubKey := ecdsa.PublicKey{
 		CURVE, x, y,
@@ -60,26 +65,15 @@ func PrivateKeyBytesToKey(CURVE elliptic.Curve, priKeyAsBytes []byte) (*ecdsa.Pr
 	return key, nil
 }
 
-// convert public key to string
+// PublicKeyToBytes converts a public key to its compressed byte representation.
 func PublicKeyToBytes(publicKey *ecdsa.PublicKey) []byte {
 	pubKeyBytes := curve.PointToBytes(publicKey.Curve, publicKey)
 	return pubKeyBytes
 }
 
-// convert public key string to key
-func PublicKeyBytesToKey(CURVE elliptic.Curve, pubKeyAsBytes []byte) (*ecdsa.PublicKey, error) {
-	// pubKeyAsBytes, err := hex.DecodeString(pubKey)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// x, y := elliptic.Unmarshal(CURVE, pubKeyAsBytes)
-	x, y := elliptic.UnmarshalCompressed(CURVE, pubKeyAsBytes)
-	key := &ecdsa.PublicKey{
-		Curve: CURVE,
-		X:     x,
-		Y:     y,
-	}
-	return key, nil
+// PublicKeyFromBytes converts a byte slice to a public key.
+func PublicKeyFromBytes(CURVE elliptic.Curve, pubKeyAsBytes []byte) (*ecdsa.PublicKey, error) {
+	return curve.BytesToPoint(CURVE, pubKeyAsBytes)
 }
 
 func GenerateSeed(size int) ([]byte, error) {
